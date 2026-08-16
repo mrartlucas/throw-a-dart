@@ -1,0 +1,11 @@
+{
+  "id": "throw-a-dart",
+  "type": "game",
+  "name": "Throw a Dart",
+  "author": "Throw A Way Games",
+  "version": "0.2.0",
+  "description": "Bullseye Big Top Circus target-engine vertical slice for Throw a Dart.",
+  "size": [128, 160],
+  "fields": [],
+  "preview": [""]
+}
