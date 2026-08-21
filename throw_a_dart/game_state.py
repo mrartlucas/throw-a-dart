@@ -14,6 +14,12 @@ PLAYER_COLORS = (
 # selectable on the cabinet while mechanics are being tuned.
 TEST_MODE = True
 
+# Universal THROW READY timing: three short flashes, then stay off until the next throw.
+READY_FLASH_ON_FRAMES = 6
+READY_FLASH_OFF_FRAMES = 6
+READY_FLASH_COUNT = 3
+READY_FLASH_TOTAL_FRAMES = (READY_FLASH_ON_FRAMES + READY_FLASH_OFF_FRAMES) * READY_FLASH_COUNT
+
 
 @dataclass(frozen=True)
 class ActSpec:
@@ -89,6 +95,7 @@ class CircusGameState:
     last_points: int = 0
     last_player: int = 0
     message_frames: int = 0
+    ready_frames: int = 0
 
     @property
     def selected_show_spec(self) -> ShowSpec:
@@ -165,11 +172,23 @@ class CircusGameState:
         self.last_points = 0
         self.last_player = 0
         self.message_frames = 0
+        self.ready_frames = 0
         self.phase = Phase.ACT_INTRO
         self.phase_frames = 42
 
     def begin_play(self) -> None:
         self.phase = Phase.PLAYING
+        self.start_ready_flash()
+
+    def start_ready_flash(self) -> None:
+        self.ready_frames = READY_FLASH_TOTAL_FRAMES
+
+    def ready_visible(self) -> bool:
+        if self.ready_frames <= 0:
+            return False
+        elapsed = READY_FLASH_TOTAL_FRAMES - self.ready_frames
+        cycle = READY_FLASH_ON_FRAMES + READY_FLASH_OFF_FRAMES
+        return (elapsed % cycle) < READY_FLASH_ON_FRAMES
 
     def throws_remaining(self) -> int:
         return max(0, self.throws_per_act - self.throws_by_player[self.current_player])
@@ -203,6 +222,7 @@ class CircusGameState:
             self.last_message = "MISS"
             self.last_points = 0
         self.message_frames = 18
+        self.start_ready_flash()
         return points, self._advance_after_throw()
 
     def _record_stars(self) -> None:
@@ -221,9 +241,11 @@ class CircusGameState:
     def stars_for_selected(self) -> int:
         return self.stars[self.selected_show][self.selected_act]
 
-    def tick_message(self) -> None:
+    def tick_presentation(self) -> None:
         if self.message_frames > 0:
             self.message_frames -= 1
+        elif self.ready_frames > 0:
+            self.ready_frames -= 1
 
     def winner(self) -> int:
         return max(range(self.player_count), key=lambda i: self.scores[i])
