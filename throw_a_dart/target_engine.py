@@ -6,6 +6,12 @@ import random
 
 PLAY_W = 128
 PLAY_H = 128
+HORIZONTAL_LANES = (34, 57, 80, 103)
+FINALE_HORIZONTAL_LANES = (32, 78, 103)
+RISING_COLUMNS = (22, 43, 64, 85, 106)
+FINALE_RISING_COLUMNS = (22, 42, 86, 106)
+ENTRY_CLEARANCE = 42
+RISING_CLEARANCE = 34
 
 class TargetBehavior(str, Enum):
     STATIONARY = "stationary"
@@ -69,8 +75,8 @@ class Target:
     def contains(self, x: int, y: int, forgiveness: int) -> bool:
         if not self.visible or self.hit:
             return False
-        r = self.radius + forgiveness
-        return (self.x - x) ** 2 + (self.y - y) ** 2 <= r * r
+        radius = self.radius + forgiveness
+        return (self.x - x) ** 2 + (self.y - y) ** 2 <= radius * radius
 
 @dataclass
 class ImpactMarker:
@@ -119,20 +125,20 @@ class TargetField:
         self.reset()
         self.act = max(0, min(len(ACT_TUNING) - 1, act))
         if self.act == 0:
-            for x, y, r, value in ((27, 45, 13, 25), (64, 72, 12, 50), (101, 43, 11, 100)):
-                self._add(behavior=TargetBehavior.STATIONARY, x=x, y=y, radius=r, value=value)
+            for x, y, radius, value in ((27, 45, 13, 25), (64, 72, 12, 50), (101, 43, 11, 100)):
+                self._add(behavior=TargetBehavior.STATIONARY, x=x, y=y, radius=radius, value=value)
         elif self.act == 1:
-            for y, left in ((35, True), (67, False), (99, True)):
-                self._spawn_horizontal(y, left)
+            for y, left in ((34, True), (80, False), (103, True)):
+                self._spawn_horizontal(y=y, left=left, force=True)
         elif self.act == 2:
-            for x, y in ((26, 104), (64, 78), (102, 52)):
-                self._spawn_rising(x, y)
+            for x, y in ((22, 104), (64, 70), (106, 40)):
+                self._spawn_rising(x=x, y=y, force=True)
             self._spawn_popup()
         else:
-            self._spawn_horizontal(36, True)
-            self._spawn_horizontal(86, False)
-            self._spawn_rising(38, 103)
-            self._spawn_rising(92, 68)
+            self._spawn_horizontal(y=32, left=True, force=True)
+            self._spawn_horizontal(y=103, left=False, force=True)
+            self._spawn_rising(x=22, y=103, force=True)
+            self._spawn_rising(x=106, y=66, force=True)
             self._spawn_popup(y=52, radius=10, value=150)
 
     def _clear_position(self, x: float, y: float, radius: int, padding: int = 7) -> bool:
@@ -144,27 +150,88 @@ class TargetField:
                 return False
         return True
 
-    def _spawn_stationary(self) -> None:
+    def _spawn_stationary(self) -> bool:
         for _ in range(30):
             radius = self.rng.choice((10, 11, 12, 13))
             x = self.rng.randint(radius + 8, PLAY_W - radius - 8)
             y = self.rng.randint(32 + radius, 104 - radius)
             if self._clear_position(x, y, radius):
                 self._add(behavior=TargetBehavior.STATIONARY, x=x, y=y, radius=radius, value=self.rng.choice((25, 50, 75, 100)))
-                return
+                return True
+        return False
 
-    def _spawn_horizontal(self, y: int | None = None, left: bool | None = None) -> None:
+    def _horizontal_lanes(self) -> tuple[int, ...]:
+        return FINALE_HORIZONTAL_LANES if self.act >= 3 else HORIZONTAL_LANES
+
+    def _horizontal_lane_available(self, y: int, left: bool) -> bool:
+        for target in self.targets:
+            if target.hit or target.behavior is not TargetBehavior.HORIZONTAL:
+                continue
+            if abs(target.y - y) > 8:
+                continue
+            if left and target.x < ENTRY_CLEARANCE:
+                return False
+            if not left and target.x > PLAY_W - ENTRY_CLEARANCE:
+                return False
+        return True
+
+    def _spawn_horizontal(self, y: int | None = None, left: bool | None = None, force: bool = False) -> bool:
         radius = self.rng.choice((9, 10, 11))
         speed = self.rng.uniform(0.38, 0.72)
         left = self.rng.choice((True, False)) if left is None else left
-        y = self.rng.choice((34, 57, 80, 103)) if y is None else y
-        self._add(behavior=TargetBehavior.HORIZONTAL, x=-radius if left else PLAY_W + radius, y=y, radius=radius, value=self.rng.choice((25, 50, 75)), vx=speed if left else -speed, lifetime=520, phase=self.rng.random() * 6.28)
+        lanes = list(self._horizontal_lanes())
+        if y is not None:
+            lanes = [y] + [lane for lane in lanes if lane != y]
+        else:
+            self.rng.shuffle(lanes)
+        for lane in lanes:
+            if force or self._horizontal_lane_available(lane, left):
+                self._add(
+                    behavior=TargetBehavior.HORIZONTAL,
+                    x=-radius if left else PLAY_W + radius,
+                    y=lane,
+                    radius=radius,
+                    value=self.rng.choice((25, 50, 75)),
+                    vx=speed if left else -speed,
+                    lifetime=520,
+                    phase=self.rng.random() * 6.28,
+                )
+                return True
+        return False
 
-    def _spawn_rising(self, x: int | None = None, y: int | None = None) -> None:
+    def _rising_columns(self) -> tuple[int, ...]:
+        return FINALE_RISING_COLUMNS if self.act >= 3 else RISING_COLUMNS
+
+    def _rising_column_available(self, x: int) -> bool:
+        for target in self.targets:
+            if target.hit or target.behavior is not TargetBehavior.RISING:
+                continue
+            if abs(target.x - x) <= 11 and target.y > PLAY_H - RISING_CLEARANCE:
+                return False
+        return True
+
+    def _spawn_rising(self, x: int | None = None, y: int | None = None, force: bool = False) -> bool:
         radius = self.rng.choice((9, 10, 11))
-        x = self.rng.choice((22, 43, 64, 85, 106)) if x is None else x
-        start_y = PLAY_H + radius if y is None else y
-        self._add(behavior=TargetBehavior.RISING, x=x, y=start_y, radius=radius, value=self.rng.choice((25, 50, 75)), vy=-self.rng.uniform(0.24, 0.42), lifetime=700, phase=self.rng.random() * 6.28)
+        columns = list(self._rising_columns())
+        if x is not None:
+            columns = [x] + [column for column in columns if column != x]
+        else:
+            self.rng.shuffle(columns)
+        for column in columns:
+            if force or self._rising_column_available(column):
+                start_y = PLAY_H + radius if y is None else y
+                self._add(
+                    behavior=TargetBehavior.RISING,
+                    x=column,
+                    y=start_y,
+                    radius=radius,
+                    value=self.rng.choice((25, 50, 75)),
+                    vy=-self.rng.uniform(0.24, 0.42),
+                    lifetime=700,
+                    phase=self.rng.random() * 6.28,
+                )
+                return True
+        return False
 
     def _spawn_popup(self, x: int = 64, y: int = 43, radius: int = 11, value: int = 100) -> None:
         self._add(behavior=TargetBehavior.POPUP, x=x, y=y, radius=radius, value=value, phase=self.rng.random() * 6.28)
@@ -174,15 +241,24 @@ class TargetField:
 
     def _replenish(self) -> None:
         tuning = self.tuning
-        while self._count(TargetBehavior.STATIONARY) < tuning.stationary_count:
-            before = len(self.targets)
-            self._spawn_stationary()
-            if len(self.targets) == before:
+        attempts = 0
+        while self._count(TargetBehavior.STATIONARY) < tuning.stationary_count and attempts < 12:
+            attempts += 1
+            if not self._spawn_stationary():
                 break
-        while self._count(TargetBehavior.HORIZONTAL) < tuning.horizontal_count:
-            self._spawn_horizontal()
-        while self._count(TargetBehavior.RISING) < tuning.rising_count:
-            self._spawn_rising()
+
+        attempts = 0
+        while self._count(TargetBehavior.HORIZONTAL) < tuning.horizontal_count and attempts < 12:
+            attempts += 1
+            if not self._spawn_horizontal():
+                break
+
+        attempts = 0
+        while self._count(TargetBehavior.RISING) < tuning.rising_count and attempts < 12:
+            attempts += 1
+            if not self._spawn_rising():
+                break
+
         while self._count(TargetBehavior.POPUP) < tuning.popup_count:
             if self.act >= 3:
                 self._spawn_popup(y=52, radius=10, value=150)
