@@ -14,11 +14,10 @@ PLAYER_COLORS = (
 # selectable on the cabinet while mechanics are being tuned.
 TEST_MODE = True
 
-# Universal THROW READY timing: three short flashes, then stay off until the next throw.
-READY_FLASH_ON_FRAMES = 6
-READY_FLASH_OFF_FRAMES = 6
-READY_FLASH_COUNT = 3
-READY_FLASH_TOTAL_FRAMES = (READY_FLASH_ON_FRAMES + READY_FLASH_OFF_FRAMES) * READY_FLASH_COUNT
+# Universal THROW READY timing at the cabinet's 30 FPS target.
+# It is a steady fighting-game-style cue: hold for 3 seconds, then disappear.
+READY_HOLD_SECONDS = 3
+READY_HOLD_FRAMES = 30 * READY_HOLD_SECONDS
 
 
 @dataclass(frozen=True)
@@ -26,6 +25,9 @@ class ActSpec:
     name: str
     menu_name: str
     mechanic_profile: int
+    # Reserved for a later score-based progression pass if desired. The current
+    # cabinet-test star rule is intentionally based on hits so every act reads
+    # consistently while target values are still being tuned.
     star_thresholds: tuple[int, int, int]
 
 
@@ -88,7 +90,11 @@ class CircusGameState:
     scores: list[int] = field(default_factory=lambda: [0, 0, 0, 0])
     combo: list[int] = field(default_factory=lambda: [0, 0, 0, 0])
     throws_by_player: list[int] = field(default_factory=lambda: [0, 0, 0, 0])
+    hits_by_player: list[int] = field(default_factory=lambda: [0, 0, 0, 0])
+    # Best stars earned per act during this test session.
     stars: list[list[int]] = field(default_factory=lambda: [[0, 0, 0] for _ in range(3)])
+    # Stars earned by the run that just ended. This is what RESULT displays.
+    result_stars: int = 0
     phase: Phase = Phase.SHOW_SELECT
     phase_frames: int = 0
     last_message: str = ""
@@ -168,6 +174,8 @@ class CircusGameState:
         self.scores[:] = [0] * 4
         self.combo[:] = [0] * 4
         self.throws_by_player[:] = [0] * 4
+        self.hits_by_player[:] = [0] * 4
+        self.result_stars = 0
         self.last_message = ""
         self.last_points = 0
         self.last_player = 0
@@ -178,17 +186,13 @@ class CircusGameState:
 
     def begin_play(self) -> None:
         self.phase = Phase.PLAYING
-        self.start_ready_flash()
+        self.start_ready_hold()
 
-    def start_ready_flash(self) -> None:
-        self.ready_frames = READY_FLASH_TOTAL_FRAMES
+    def start_ready_hold(self) -> None:
+        self.ready_frames = READY_HOLD_FRAMES
 
     def ready_visible(self) -> bool:
-        if self.ready_frames <= 0:
-            return False
-        elapsed = READY_FLASH_TOTAL_FRAMES - self.ready_frames
-        cycle = READY_FLASH_ON_FRAMES + READY_FLASH_OFF_FRAMES
-        return (elapsed % cycle) < READY_FLASH_ON_FRAMES
+        return self.ready_frames > 0
 
     def throws_remaining(self) -> int:
         return max(0, self.throws_per_act - self.throws_by_player[self.current_player])
@@ -210,6 +214,7 @@ class CircusGameState:
         self.last_player = scoring_player
         self.throws_by_player[scoring_player] += 1
         if base > 0:
+            self.hits_by_player[scoring_player] += 1
             multiplier = 1 + min(self.combo[scoring_player], 2)
             points = base * multiplier
             self.scores[scoring_player] += points
@@ -222,21 +227,34 @@ class CircusGameState:
             self.last_message = "MISS"
             self.last_points = 0
         self.message_frames = 18
-        self.start_ready_flash()
-        return points, self._advance_after_throw()
+        transition = self._advance_after_throw()
+        if transition == "continue":
+            self.start_ready_hold()
+        else:
+            self.ready_frames = 0
+        return points, transition
 
     def _record_stars(self) -> None:
-        # Development-only in-memory progression. Persistence/profile ownership
-        # comes later. Test mode never uses this to lock the menu.
-        score = max(self.scores[: self.player_count])
-        earned = self.stars_for_score(score, self.active_act_spec.star_thresholds)
+        # Cabinet-test rule: stars describe this run's hit consistency, not the
+        # point values (which are still being tuned by act).
+        best_hits = max(self.hits_by_player[: self.player_count])
+        earned = self.stars_for_hits(best_hits, self.throws_per_act)
+        self.result_stars = earned
         self.stars[self.show_index][self.act_index] = max(
             self.stars[self.show_index][self.act_index], earned
         )
 
     @staticmethod
-    def stars_for_score(score: int, thresholds: tuple[int, int, int]) -> int:
-        return sum(1 for threshold in thresholds if score >= threshold)
+    def stars_for_hits(hits: int, throws: int = 5) -> int:
+        if hits <= 0 or throws <= 0:
+            return 0
+        if hits >= throws:
+            return 3
+        # For the standard 5-throw act: 3-4 hits = 2 stars.
+        if hits * 5 >= throws * 3:
+            return 2
+        # Any successful hit earns at least one star in the test progression.
+        return 1
 
     def stars_for_selected(self) -> int:
         return self.stars[self.selected_show][self.selected_act]
