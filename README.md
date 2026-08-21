@@ -1,4 +1,4 @@
-# Throw a Dart v0.3.4
+# Throw a Dart v0.3.5
 
 Bullseye Big Top Circus mechanics test build.
 
@@ -6,9 +6,9 @@ Bullseye Big Top Circus mechanics test build.
 
 **SHOWS -> ACTS -> PLAYERS -> START**
 
-There is no Arcade / Pro selector. Difficulty comes from the ACT progression and its changing challenges.
+There is no Arcade / Pro selector. Difficulty comes from ACT progression and its changing challenges.
 
-TEST MODE keeps every show and every act unlocked so cabinet testing can jump directly to any challenge.
+TEST MODE keeps every show and act unlocked so cabinet testing can jump directly to any challenge.
 
 ## Lower 64x32 screen layout
 
@@ -27,55 +27,72 @@ Gameplay HUD lock:
 - **middle:** large score
 - **bottom:** small player / combo support
 
+## TEST LAB
+
+From the root **SHOWS** screen in TEST MODE:
+
+- **B** = open TEST LAB
+- **Left / Right** = choose FONT LAB or ANIMATION LAB
+- **A** = enter selected lab
+- **B** = return
+
+### FONT LAB
+
+The font lab compares coded UI typography only. Final titles, marquees and playfield typography remain custom artwork.
+
+- **Left / Right** = cycle font option
+- **A** = preview THROW READY
+- **B** = return to TEST LAB
+
+The sample is shown on both the 128x128 main screen and actual 64x32 lower screen.
+
+### ANIMATION LAB
+
+Seven THROW READY treatments are available:
+
+1. COLOR BORDER
+2. CHASE BORDER
+3. TEXT POP
+4. BOUNCE
+5. FLASH INVERT
+6. COLOR PULSE
+7. COMBO
+
+Controls:
+
+- **Left / Right** = previous / next animation
+- **Up / Down** = change speed: SLOW / MED / FAST
+- **A** = run the 1.5-second preview with ready sound
+- **B** = return to TEST LAB
+
+Every preview renders on both physical display regions so the effect can be judged at real cabinet resolution before anything is made universal.
+
 ## THROW READY
 
-`THROW READY` is now a 1.5-second animated cue.
-
-During the cue:
-
-- top 128x128 border rapidly cycles player color / gold / teal / white
-- corner accents chase/pulse without covering targets
-- lower 64x32 border cycles with the same rhythm
-- THROW / READY text alternates color and shifts by one pixel for a tiny arcade bounce
-- a short ready chime plays once when the cue becomes visible
-
-After 1.5 seconds, the normal gameplay HUD returns while the player aims.
+The live game still uses the current animated THROW READY treatment for 1.5 seconds. The Animation Lab is exploratory only until a treatment and speed are approved.
 
 ## Placeholder UI audio
 
-The mechanics build now has synthesized placeholder cabinet sounds with no external audio files required:
+The mechanics build includes synthesized placeholder sounds with no external audio assets required:
 
 - menu move
 - select / confirm
 - back
 - THROW READY chime
 
-These are temporary and can be replaced by the final shared Throw A Way Games sound set later.
-
-## TEST font lab
-
-Because final title / marquee / playfield typography is normally custom artwork, the font lab is only for **coded UI text**.
-
-From the root **SHOWS** screen in TEST MODE:
-
-- **B** = open FONT LAB
-- **Left / Right** = cycle font option
-- **A** = preview the 1.5-second THROW READY animation/chime on both displays
-- **B** = return to SHOWS
-
-The lab compares the same UI examples on the 128x128 top screen and the real 64x32 lower screen so cabinet readability can be judged before we lock the universal UI font.
+These can later become the shared temporary Throw A Way Games sound language.
 
 ## Test star rule
 
-Stars are currently based on hit consistency rather than target point values while mechanics are still being tuned:
+Stars are currently based on hit consistency while target point values are still being tuned:
 
 - 0 hits = 0 stars
 - 1-2 hits = 1 star
 - 3-4 hits = 2 stars
 - 5/5 hits = 3 stars
 
-The RESULT screen shows stars from the current run. The ACT menu may retain the best stars earned during the current test session. Progression data exists, but TEST MODE does not enforce locks.
+The RESULT screen shows stars from the current run. The ACT menu can retain the best stars earned during the current test session. TEST MODE does not enforce progression locks.
 
 ## Current goal
 
-Keep this mechanics-first. Playtest target size, movement speed, forgiveness, popup timing, act difficulty progression, multiplayer rhythm, HUD readability, UI font readability, sound timing, and physical dart flow before final target-stage art is produced.
+Keep this mechanics-first. Use TEST LAB to lock UI font readability, THROW READY animation style, animation speed and sound feel on the real cabinet. After approval, extract those chosen behaviors into a reusable Throw A Way Games UI/FX layer for Throw a Dart, Throw a Strike and Throw a Ball.
