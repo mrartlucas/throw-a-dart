@@ -91,6 +91,24 @@ def draw_target(surface,target,tiny):
         surface.blit(image,(x-image.get_width()//2,y-4))
 
 
+def draw_impact(surface,impact):
+    x,y=int(impact.x),int(impact.y)
+    if impact.hit:
+        radius=3+impact.age//2
+        color=WHITE if impact.age<3 else GOLD
+        pygame.draw.circle(surface,color,(x,y),radius,1)
+        if impact.age<7:
+            arm=4+impact.age
+            pygame.draw.line(surface,color,(x-arm,y),(x-2,y),1)
+            pygame.draw.line(surface,color,(x+2,y),(x+arm,y),1)
+            pygame.draw.line(surface,color,(x,y-arm),(x,y-2),1)
+            pygame.draw.line(surface,color,(x,y+2),(x,y+arm),1)
+    else:
+        arm=3+min(4,impact.age//2)
+        pygame.draw.line(surface,RED,(x-arm,y-arm),(x+arm,y+arm),1)
+        pygame.draw.line(surface,RED,(x+arm,y-arm),(x-arm,y+arm),1)
+
+
 def read_samples(rows):
     output=[]
     for dart_index,x,y in rows:
@@ -262,6 +280,8 @@ def main():
         elif game.phase is Phase.PLAYING:
             for target in field.targets:
                 draw_target(surface,target,tiny)
+            for impact in field.impacts:
+                draw_impact(surface,impact)
             color=PLAYER_COLORS[game.current_player]
             pygame.draw.rect(surface,INK,(3,3,21,11))
             font=pygame.font.Font(None,12)
