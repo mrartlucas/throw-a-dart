@@ -112,6 +112,17 @@ class TargetField:
     def tuning(self) -> ActTuning:
         return ACT_TUNING[self.act]
 
+    @staticmethod
+    def stationary_value(radius: int) -> int:
+        return min(100, max(25, (14 - radius) * 25))
+
+    @staticmethod
+    def moving_value(radius: int, speed: float, fast_threshold: float) -> int:
+        base = min(100, max(25, (13 - radius) * 25))
+        if abs(speed) >= fast_threshold:
+            base += 25
+        return min(125, base)
+
     def _add(self, **kwargs) -> None:
         self.targets.append(Target(target_id=self._next_id, **kwargs))
         self._next_id += 1
@@ -125,8 +136,8 @@ class TargetField:
         self.reset()
         self.act = max(0, min(len(ACT_TUNING) - 1, act))
         if self.act == 0:
-            for x, y, radius, value in ((27, 45, 13, 25), (64, 72, 12, 50), (101, 43, 11, 100)):
-                self._add(behavior=TargetBehavior.STATIONARY, x=x, y=y, radius=radius, value=value)
+            for x, y, radius in ((27, 45, 13), (64, 72, 12), (101, 43, 11)):
+                self._add(behavior=TargetBehavior.STATIONARY, x=x, y=y, radius=radius, value=self.stationary_value(radius))
         elif self.act == 1:
             for y, left in ((34, True), (80, False), (103, True)):
                 self._spawn_horizontal(y=y, left=left, force=True)
@@ -156,7 +167,7 @@ class TargetField:
             x = self.rng.randint(radius + 8, PLAY_W - radius - 8)
             y = self.rng.randint(32 + radius, 104 - radius)
             if self._clear_position(x, y, radius):
-                self._add(behavior=TargetBehavior.STATIONARY, x=x, y=y, radius=radius, value=self.rng.choice((25, 50, 75, 100)))
+                self._add(behavior=TargetBehavior.STATIONARY, x=x, y=y, radius=radius, value=self.stationary_value(radius))
                 return True
         return False
 
@@ -186,13 +197,14 @@ class TargetField:
             self.rng.shuffle(lanes)
         for lane in lanes:
             if force or self._horizontal_lane_available(lane, left):
+                velocity = speed if left else -speed
                 self._add(
                     behavior=TargetBehavior.HORIZONTAL,
                     x=-radius if left else PLAY_W + radius,
                     y=lane,
                     radius=radius,
-                    value=self.rng.choice((25, 50, 75)),
-                    vx=speed if left else -speed,
+                    value=self.moving_value(radius, velocity, 0.58),
+                    vx=velocity,
                     lifetime=520,
                     phase=self.rng.random() * 6.28,
                 )
@@ -220,13 +232,14 @@ class TargetField:
         for column in columns:
             if force or self._rising_column_available(column):
                 start_y = PLAY_H + radius if y is None else y
+                velocity = -self.rng.uniform(0.24, 0.42)
                 self._add(
                     behavior=TargetBehavior.RISING,
                     x=column,
                     y=start_y,
                     radius=radius,
-                    value=self.rng.choice((25, 50, 75)),
-                    vy=-self.rng.uniform(0.24, 0.42),
+                    value=self.moving_value(radius, velocity, 0.35),
+                    vy=velocity,
                     lifetime=700,
                     phase=self.rng.random() * 6.28,
                 )
