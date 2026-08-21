@@ -1,38 +1,30 @@
-# Throw a Dart v0.3.1
+# Throw a Dart v0.3.2
 
-Bullseye Big Top Circus mechanics test build.
+Bullseye Big Top Circus mechanics test build. Gameplay mechanics remain unchanged from the cabinet-approved v0.3.1 pass.
 
-## Setup flow
+## Cabinet presentation corrections
 
-**SHOWS -> ACTS -> PLAYERS -> START**
-
-- No Arcade / Pro selector. The acts themselves increase difficulty and introduce different challenges.
-- Three SHOWS with three ACTS each are wired into the test menu.
-- TEST MODE keeps every SHOW and ACT unlocked.
-- PLAYERS uses the Throw A Way Games `1 2 3 4` row.
-- Player numbers sit one pixel higher and the selected-player marker is a small **upward-pointing** arrow.
-- SHOW/ACT navigation uses the series-standard 3x5 edge chevrons.
-- Lower-screen helper text keeps the standard 4 px character advance whenever it fits; 3 px is reserved only for genuine overflow.
+- Setup remains **SHOWS -> ACTS -> PLAYERS -> START**.
+- SHOW selection is larger on the 64x32 screen.
+- Result typography is larger on both screens.
+- Main 128x128 gameplay no longer duplicates the P1 badge; player identity lives on the lower screen.
+- PLAYERS header, numbers, and selector arrow are moved up one pixel.
+- Menu and helper text use normal 4 px character spacing whenever it fits. No length-based text crushing.
+- Gameplay HUD replaces cryptic `D1 / X3 / A1` shorthand with clear labels: `LEFT`, `SCORE`, `COMBO`, and `ACT`.
 
 ## Universal THROW READY behavior
 
-`THROW READY` is a fighting-game-style start cue, not a repeating status panel.
+`THROW READY` is a fighting-game-style cue. It now appears steadily for **3 seconds**, then disappears and stays off while the player aims. It returns for 3 seconds when the next throw becomes playable. **No flashing.**
 
-- It flashes **3 times** at the start of a playable throw.
-- After the third flash it disappears.
-- It stays off while the player aims.
-- After a valid throw/result, the 3-flash cue is armed again for the next throw.
-- It does not alternate forever with the gameplay HUD.
+This rule is also locked in the Throw A Way Games UI / Visual Standard.
 
-This behavior is also locked in the Throw A Way Games UI / Visual Standard.
+## Test star rule
 
-## Progression scaffold
+Scoring math is unchanged. Stars are now deliberately independent of target point values while mechanics are still being tuned:
 
-- Every act can earn 0-3 stars from score thresholds.
-- Stars are tracked in memory for testing.
-- They do not lock anything in TEST MODE.
-- Final release progression can later use stars to unlock the next act/show while keeping achievements for bonus/secret content.
+- 0 hits = 0 stars
+- 1-2 hits = 1 star
+- 3-4 hits = 2 stars
+- 5/5 hits = 3 stars
 
-## Mechanics-first goal
-
-The current playfields are temporary mechanics graphics. Use this build to test target size, target speed, forgiveness, pop-up timing, multiplayer rhythm, difficulty progression, menu readability, and lower-screen behavior before final target-stage artwork is designed.
+The RESULT screen always shows stars from the **current run**. The ACT menu may retain the best stars earned during the test session. This prevents an old 3-star run from appearing after a later all-miss run. TEST MODE still keeps every show and act unlocked.
