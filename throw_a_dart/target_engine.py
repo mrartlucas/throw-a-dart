@@ -27,6 +27,8 @@ class ActTuning:
     rising_count: int = 0
     popup_count: int = 0
 
+# These are reusable mechanical profiles. SHOW/ACT identity lives in game_state.
+# Difficulty rank 0..8 modifies speed/forgiveness without changing the profile.
 ACT_TUNING = (
     ActTuning(forgiveness=4, stationary_count=3),
     ActTuning(forgiveness=4, horizontal_count=3),
@@ -49,6 +51,9 @@ class Target:
     visible: bool = True
     hit: bool = False
     phase: float = 0.0
+    popup_start: int = 10
+    popup_end: int = 56
+    popup_cycle: int = 86
 
     def update(self) -> None:
         self.age += 1
@@ -60,7 +65,8 @@ class Target:
             self.y += self.vy
             self.x += math.sin(self.age * 0.06 + self.phase) * 0.18
         elif self.behavior is TargetBehavior.POPUP:
-            self.visible = 10 <= (self.age % 86) <= 56
+            phase = self.age % self.popup_cycle
+            self.visible = self.popup_start <= phase <= self.popup_end
 
     @property
     def expired(self) -> bool:
@@ -107,10 +113,25 @@ class TargetField:
         self._next_id = 1
         self.frame = 0
         self.act = 0
+        self.difficulty = 0
 
     @property
     def tuning(self) -> ActTuning:
         return ACT_TUNING[self.act]
+
+    @property
+    def forgiveness(self) -> int:
+        # Early acts remain generous; later acts progressively demand cleaner aim.
+        return max(1, self.tuning.forgiveness - self.difficulty // 3)
+
+    @property
+    def speed_scale(self) -> float:
+        # Rank 0 = 1.00x; rank 8 = 1.48x. Small enough to remain cabinet-testable.
+        return 1.0 + self.difficulty * 0.06
+
+    @property
+    def popup_visibility_scale(self) -> float:
+        return max(0.58, 1.0 - self.difficulty * 0.045)
 
     @staticmethod
     def stationary_value(radius: int) -> int:
@@ -132,9 +153,10 @@ class TargetField:
         self.impacts.clear()
         self.frame = 0
 
-    def start_act(self, act: int) -> None:
+    def start_act(self, act: int, difficulty: int = 0) -> None:
         self.reset()
         self.act = max(0, min(len(ACT_TUNING) - 1, act))
+        self.difficulty = max(0, min(8, difficulty))
         if self.act == 0:
             for x, y, radius in ((27, 45, 13), (64, 72, 12), (101, 43, 11)):
                 self._add(behavior=TargetBehavior.STATIONARY, x=x, y=y, radius=radius, value=self.stationary_value(radius))
@@ -163,7 +185,8 @@ class TargetField:
 
     def _spawn_stationary(self) -> bool:
         for _ in range(30):
-            radius = self.rng.choice((10, 11, 12, 13))
+            radius_choices=(10,11,12,13) if self.difficulty<5 else (9,10,11,12)
+            radius = self.rng.choice(radius_choices)
             x = self.rng.randint(radius + 8, PLAY_W - radius - 8)
             y = self.rng.randint(32 + radius, 104 - radius)
             if self._clear_position(x, y, radius):
@@ -187,8 +210,9 @@ class TargetField:
         return True
 
     def _spawn_horizontal(self, y: int | None = None, left: bool | None = None, force: bool = False) -> bool:
-        radius = self.rng.choice((9, 10, 11))
-        speed = self.rng.uniform(0.38, 0.72)
+        radius_choices=(9,10,11) if self.difficulty<5 else (8,9,10)
+        radius = self.rng.choice(radius_choices)
+        speed = self.rng.uniform(0.38, 0.72) * self.speed_scale
         left = self.rng.choice((True, False)) if left is None else left
         lanes = list(self._horizontal_lanes())
         if y is not None:
@@ -203,7 +227,7 @@ class TargetField:
                     x=-radius if left else PLAY_W + radius,
                     y=lane,
                     radius=radius,
-                    value=self.moving_value(radius, velocity, 0.58),
+                    value=self.moving_value(radius, velocity, 0.58*self.speed_scale),
                     vx=velocity,
                     lifetime=520,
                     phase=self.rng.random() * 6.28,
@@ -223,7 +247,8 @@ class TargetField:
         return True
 
     def _spawn_rising(self, x: int | None = None, y: int | None = None, force: bool = False) -> bool:
-        radius = self.rng.choice((9, 10, 11))
+        radius_choices=(9,10,11) if self.difficulty<5 else (8,9,10)
+        radius = self.rng.choice(radius_choices)
         columns = list(self._rising_columns())
         if x is not None:
             columns = [x] + [column for column in columns if column != x]
@@ -232,13 +257,13 @@ class TargetField:
         for column in columns:
             if force or self._rising_column_available(column):
                 start_y = PLAY_H + radius if y is None else y
-                velocity = -self.rng.uniform(0.24, 0.42)
+                velocity = -self.rng.uniform(0.24, 0.42) * self.speed_scale
                 self._add(
                     behavior=TargetBehavior.RISING,
                     x=column,
                     y=start_y,
                     radius=radius,
-                    value=self.moving_value(radius, velocity, 0.35),
+                    value=self.moving_value(radius, velocity, 0.35*self.speed_scale),
                     vy=velocity,
                     lifetime=700,
                     phase=self.rng.random() * 6.28,
@@ -247,7 +272,18 @@ class TargetField:
         return False
 
     def _spawn_popup(self, x: int = 64, y: int = 43, radius: int = 11, value: int = 100) -> None:
-        self._add(behavior=TargetBehavior.POPUP, x=x, y=y, radius=radius, value=value, phase=self.rng.random() * 6.28)
+        visible_frames=max(22,int(47*self.popup_visibility_scale))
+        self._add(
+            behavior=TargetBehavior.POPUP,
+            x=x,
+            y=y,
+            radius=max(8,radius-self.difficulty//5),
+            value=value,
+            phase=self.rng.random()*6.28,
+            popup_start=10,
+            popup_end=10+visible_frames,
+            popup_cycle=86,
+        )
 
     def _count(self, behavior: TargetBehavior) -> int:
         return sum(1 for target in self.targets if target.behavior is behavior and not target.hit)
@@ -278,9 +314,11 @@ class TargetField:
             else:
                 self._spawn_popup()
 
-    def update(self, act: int | None = None) -> None:
+    def update(self, act: int | None = None, difficulty: int | None = None) -> None:
         if act is not None:
             self.act = max(0, min(len(ACT_TUNING) - 1, act))
+        if difficulty is not None:
+            self.difficulty = max(0, min(8, difficulty))
         self.frame += 1
         for target in self.targets:
             target.update()
@@ -291,7 +329,7 @@ class TargetField:
         self._replenish()
 
     def hit_test(self, x: int, y: int, forgiveness: int | None = None) -> HitResult:
-        margin = self.tuning.forgiveness if forgiveness is None else forgiveness
+        margin = self.forgiveness if forgiveness is None else forgiveness
         candidates = [target for target in self.targets if target.contains(x, y, margin)]
         if not candidates:
             self.impacts.append(ImpactMarker(x=x, y=y, hit=False))
