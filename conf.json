@@ -3,9 +3,14 @@
   "type": "game",
   "name": "Throw a Dart",
   "author": "Throw A Way Games",
-  "version": "0.3.0",
-  "description": "Bullseye Big Top Circus mechanics test with SHOWS, ACTS, PLAYERS, difficulty progression, and unlocked test stars.",
-  "size": [128, 160],
+  "version": "0.3.1",
+  "description": "Bullseye Big Top Circus mechanics test with universal 3-flash THROW READY and corrected lower-screen UI spacing.",
+  "size": [
+    128,
+    160
+  ],
   "fields": [],
-  "preview": [""]
+  "preview": [
+    ""
+  ]
 }
