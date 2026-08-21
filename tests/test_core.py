@@ -11,6 +11,27 @@ class CoreTests(unittest.TestCase):
         self.assertTrue(result.hit)
         self.assertEqual(result.points,50)
 
+    def test_stationary_target_replenishes_after_hit(self):
+        field=TargetField(1)
+        field.start_act(0)
+        ids={target.target_id for target in field.targets}
+        field.hit_test(64,72)
+        field.update()
+        self.assertEqual(len(field.targets),3)
+        self.assertTrue(any(target.target_id not in ids for target in field.targets))
+
+    def test_hit_and_miss_leave_short_impact_feedback(self):
+        field=TargetField(1)
+        field.start_act(0)
+        field.hit_test(64,72)
+        field.hit_test(2,120)
+        self.assertEqual(len(field.impacts),2)
+        self.assertTrue(field.impacts[0].hit)
+        self.assertFalse(field.impacts[1].hit)
+        for _ in range(12):
+            field.update()
+        self.assertEqual(field.impacts,[])
+
     def test_popup_hides(self):
         field=TargetField(1)
         field.start_act(2)
@@ -18,6 +39,18 @@ class CoreTests(unittest.TestCase):
         for _ in range(70):
             popup.update()
         self.assertFalse(popup.visible)
+
+    def test_hit_popup_is_replaced(self):
+        field=TargetField(1)
+        field.start_act(2)
+        popup=next(t for t in field.targets if t.behavior is TargetBehavior.POPUP)
+        popup.visible=True
+        result=field.hit_test(int(popup.x),int(popup.y))
+        self.assertTrue(result.hit)
+        old=popup.target_id
+        field.update()
+        replacement=next(t for t in field.targets if t.behavior is TargetBehavior.POPUP)
+        self.assertNotEqual(replacement.target_id,old)
 
     def test_retained_dart_not_repeated(self):
         tracker=SemanticDartTracker()
