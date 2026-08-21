@@ -150,10 +150,11 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(game.record_throw(25)[0],75)
         self.assertEqual(game.record_throw(25)[0],75)
 
-    def test_throw_ready_holds_three_seconds_then_stays_off(self):
+    def test_throw_ready_holds_one_point_five_seconds_then_stays_off(self):
         game=CircusGameState()
         game.begin()
         game.begin_play()
+        self.assertEqual(READY_HOLD_FRAMES,45)
         self.assertTrue(game.ready_visible())
         for _ in range(READY_HOLD_FRAMES-1):
             game.tick_presentation()
@@ -212,11 +213,10 @@ class CoreTests(unittest.TestCase):
         game=CircusGameState(player_count=2,throws_per_act=2)
         game.begin()
         game.begin_play()
-        # P1 hits a low target twice; P2 hits a higher target once and wins.
-        game.record_throw(25)   # P1
-        game.record_throw(100)  # P2
-        game.record_throw(25)   # P1
-        game.record_throw(0)    # P2 -> game over
+        game.record_throw(25)
+        game.record_throw(100)
+        game.record_throw(25)
+        game.record_throw(0)
         self.assertEqual(game.winner(),1)
         self.assertEqual(game.hits_by_player[1],1)
         self.assertEqual(game.result_stars,1)
