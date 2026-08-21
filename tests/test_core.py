@@ -1,7 +1,7 @@
 import unittest
 from throw_a_dart.semantic_darts import DartSample, SemanticDartTracker
 from throw_a_dart.target_engine import TargetField, TargetBehavior
-from throw_a_dart.game_state import (SHOWS, TEST_MODE, READY_FLASH_ON_FRAMES, READY_FLASH_OFF_FRAMES, READY_FLASH_COUNT, CircusGameState, Phase)
+from throw_a_dart.game_state import (SHOWS, TEST_MODE, READY_HOLD_FRAMES, CircusGameState, Phase)
 
 class CoreTests(unittest.TestCase):
     def test_stationary_hit(self):
@@ -150,28 +150,22 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(game.record_throw(25)[0],75)
         self.assertEqual(game.record_throw(25)[0],75)
 
-    def test_throw_ready_flashes_three_times_then_stays_off(self):
+    def test_throw_ready_holds_three_seconds_then_stays_off(self):
         game=CircusGameState()
         game.begin()
         game.begin_play()
-        visible_runs=0
-        was_visible=False
-        total=(READY_FLASH_ON_FRAMES+READY_FLASH_OFF_FRAMES)*READY_FLASH_COUNT
-        for _ in range(total):
-            visible=game.ready_visible()
-            if visible and not was_visible:
-                visible_runs+=1
-            was_visible=visible
+        self.assertTrue(game.ready_visible())
+        for _ in range(READY_HOLD_FRAMES-1):
             game.tick_presentation()
-        self.assertEqual(visible_runs,3)
+            self.assertTrue(game.ready_visible())
+        game.tick_presentation()
         self.assertFalse(game.ready_visible())
 
     def test_throw_ready_restarts_after_each_throw_result(self):
         game=CircusGameState(throws_per_act=2)
         game.begin()
         game.begin_play()
-        total=(READY_FLASH_ON_FRAMES+READY_FLASH_OFF_FRAMES)*READY_FLASH_COUNT
-        for _ in range(total):
+        for _ in range(READY_HOLD_FRAMES):
             game.tick_presentation()
         self.assertFalse(game.ready_visible())
         game.record_throw(25)
@@ -180,12 +174,40 @@ class CoreTests(unittest.TestCase):
             game.tick_presentation()
         self.assertTrue(game.ready_visible())
 
-    def test_star_thresholds_return_zero_to_three(self):
-        thresholds=(100,250,450)
-        self.assertEqual(CircusGameState.stars_for_score(99,thresholds),0)
-        self.assertEqual(CircusGameState.stars_for_score(100,thresholds),1)
-        self.assertEqual(CircusGameState.stars_for_score(300,thresholds),2)
-        self.assertEqual(CircusGameState.stars_for_score(500,thresholds),3)
+    def test_final_throw_does_not_arm_ready_cue(self):
+        game=CircusGameState(throws_per_act=1)
+        game.begin()
+        game.begin_play()
+        game.record_throw(25)
+        self.assertEqual(game.phase,Phase.GAME_RESULT)
+        self.assertEqual(game.ready_frames,0)
+
+    def test_star_hits_are_consistent_for_five_throw_act(self):
+        self.assertEqual(CircusGameState.stars_for_hits(0,5),0)
+        self.assertEqual(CircusGameState.stars_for_hits(1,5),1)
+        self.assertEqual(CircusGameState.stars_for_hits(2,5),1)
+        self.assertEqual(CircusGameState.stars_for_hits(3,5),2)
+        self.assertEqual(CircusGameState.stars_for_hits(4,5),2)
+        self.assertEqual(CircusGameState.stars_for_hits(5,5),3)
+
+    def test_result_stars_are_current_run_not_old_best(self):
+        game=CircusGameState(throws_per_act=1)
+        game.stars[0][0]=3
+        game.begin()
+        game.begin_play()
+        game.record_throw(0)
+        self.assertEqual(game.result_stars,0)
+        self.assertEqual(game.stars[0][0],3)
+
+    def test_any_hit_gets_at_least_one_star(self):
+        game=CircusGameState(throws_per_act=5)
+        game.begin()
+        game.begin_play()
+        game.record_throw(25)
+        for _ in range(4):
+            game.record_throw(0)
+        self.assertEqual(game.result_stars,1)
+
 
 if __name__=='__main__':
     unittest.main()
