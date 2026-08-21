@@ -6,7 +6,7 @@ from pydartsnut import Dartsnut
 from throw_a_dart.semantic_darts import DartSample, SemanticDartTracker
 from throw_a_dart.target_engine import TargetBehavior, TargetField
 from throw_a_dart.game_state import SHOWS, PLAYER_COLORS, TEST_MODE, CircusGameState, Phase
-from throw_a_dart.pixel_ui import draw_centered, draw_text, draw_right, draw_chevron, draw_down_marker
+from throw_a_dart.pixel_ui import draw_centered, draw_text, draw_right, draw_chevron, draw_up_marker
 
 WIDTH, HEIGHT, PLAY_H = 128, 160, 128
 FPS = 30
@@ -148,7 +148,7 @@ def draw_show_menu(surface,game):
     draw_centered(surface,label,32,139,WHITE,advance=advance)
     draw_chevron(surface,2,142,TEAL,False)
     draw_chevron(surface,59,142,TEAL,True)
-    draw_text(surface,'A NEXT',3,153,TEAL,advance=3)
+    draw_centered(surface,'A NEXT',32,153,TEAL,advance=4)
 
 
 def draw_act_menu(surface,game):
@@ -160,8 +160,8 @@ def draw_act_menu(surface,game):
     draw_chevron(surface,2,142,TEAL,False)
     draw_chevron(surface,59,142,TEAL,True)
     draw_star_row(surface,game.stars_for_selected(),147)
-    draw_text(surface,'A NEXT',3,153,TEAL,advance=3)
-    draw_right(surface,'B BACK',60,153,TEAL,advance=3)
+    draw_text(surface,'A NEXT',3,153,TEAL,advance=4)
+    draw_right(surface,'B BACK',60,153,TEAL,advance=4)
 
 
 def draw_player_menu(surface,game):
@@ -170,10 +170,10 @@ def draw_player_menu(surface,game):
     xs=(8,23,38,53)
     for index,x in enumerate(xs):
         color=YELLOW if index+1==game.player_count else WHITE
-        draw_centered(surface,str(index+1),x,140,color,sx=1,sy=2)
-    draw_down_marker(surface,xs[game.player_count-1],151,YELLOW)
-    draw_text(surface,'A START',3,153,TEAL,advance=3)
-    draw_right(surface,'B BACK',60,153,TEAL,advance=3)
+        draw_centered(surface,str(index+1),x,139,color,sx=1,sy=2)
+    draw_up_marker(surface,xs[game.player_count-1],150,YELLOW)
+    draw_text(surface,'A START',3,153,TEAL,advance=4)
+    draw_right(surface,'B BACK',60,153,TEAL,advance=4)
 
 
 def draw_throw_ready(surface,game):
@@ -284,7 +284,7 @@ def main():
                 if transition=='game_over':
                     tracker.baseline(active)
             else:
-                game.tick_message()
+                game.tick_presentation()
 
         elif game.phase is Phase.GAME_RESULT:
             tracker.baseline(active)
@@ -317,7 +317,7 @@ def main():
             surface.blit(label,(64-label.get_width()//2,65))
             lower_clear(surface,PLAYER_COLORS[game.current_player])
             draw_text(surface,f'P{game.current_player+1}',2,130,PLAYER_COLORS[game.current_player])
-            draw_centered(surface,'GET READY',32,142,CREAM,advance=3)
+            draw_centered(surface,'GET READY',32,142,CREAM,advance=4)
 
         elif game.phase is Phase.PLAYING:
             for target in field.targets:
@@ -332,7 +332,7 @@ def main():
 
             if game.message_frames>0:
                 draw_result_callout(surface,game)
-            elif (tick//36)%2==1:
+            elif game.ready_visible():
                 draw_throw_ready(surface,game)
             else:
                 draw_game_status(surface,game)
@@ -354,8 +354,8 @@ def main():
             lower_clear(surface,PLAYER_COLORS[winner])
             draw_centered(surface,'RESULT',32,130,CREAM)
             draw_centered(surface,f'P{winner+1} {game.scores[winner]}',32,140,PLAYER_COLORS[winner])
-            draw_text(surface,'A AGAIN',3,153,TEAL,advance=3)
-            draw_right(surface,'B MENU',60,153,TEAL,advance=3)
+            draw_text(surface,'A AGAIN',3,153,TEAL,advance=4)
+            draw_right(surface,'B MENU',60,153,TEAL,advance=4)
 
         protect_lower(surface)
         submit(engine,surface)
