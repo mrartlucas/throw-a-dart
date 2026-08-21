@@ -235,10 +235,10 @@ class CircusGameState:
         return points, transition
 
     def _record_stars(self) -> None:
-        # Cabinet-test rule: stars describe this run's hit consistency, not the
-        # point values (which are still being tuned by act).
-        best_hits = max(self.hits_by_player[: self.player_count])
-        earned = self.stars_for_hits(best_hits, self.throws_per_act)
+        # Cabinet-test rule: stars describe the winning player's hit consistency,
+        # not the point values (which are still being tuned by act).
+        winner_hits = self.hits_by_player[self.winner()]
+        earned = self.stars_for_hits(winner_hits, self.throws_per_act)
         self.result_stars = earned
         self.stars[self.show_index][self.act_index] = max(
             self.stars[self.show_index][self.act_index], earned
