@@ -1,7 +1,7 @@
 import unittest
 from throw_a_dart.semantic_darts import DartSample, SemanticDartTracker
 from throw_a_dart.target_engine import TargetField, TargetBehavior
-from throw_a_dart.game_state import SHOWS, TEST_MODE, CircusGameState, Phase
+from throw_a_dart.game_state import (SHOWS, TEST_MODE, READY_FLASH_ON_FRAMES, READY_FLASH_OFF_FRAMES, READY_FLASH_COUNT, CircusGameState, Phase)
 
 class CoreTests(unittest.TestCase):
     def test_stationary_hit(self):
@@ -149,6 +149,36 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(game.record_throw(25)[0],50)
         self.assertEqual(game.record_throw(25)[0],75)
         self.assertEqual(game.record_throw(25)[0],75)
+
+    def test_throw_ready_flashes_three_times_then_stays_off(self):
+        game=CircusGameState()
+        game.begin()
+        game.begin_play()
+        visible_runs=0
+        was_visible=False
+        total=(READY_FLASH_ON_FRAMES+READY_FLASH_OFF_FRAMES)*READY_FLASH_COUNT
+        for _ in range(total):
+            visible=game.ready_visible()
+            if visible and not was_visible:
+                visible_runs+=1
+            was_visible=visible
+            game.tick_presentation()
+        self.assertEqual(visible_runs,3)
+        self.assertFalse(game.ready_visible())
+
+    def test_throw_ready_restarts_after_each_throw_result(self):
+        game=CircusGameState(throws_per_act=2)
+        game.begin()
+        game.begin_play()
+        total=(READY_FLASH_ON_FRAMES+READY_FLASH_OFF_FRAMES)*READY_FLASH_COUNT
+        for _ in range(total):
+            game.tick_presentation()
+        self.assertFalse(game.ready_visible())
+        game.record_throw(25)
+        self.assertGreater(game.ready_frames,0)
+        while game.message_frames>0:
+            game.tick_presentation()
+        self.assertTrue(game.ready_visible())
 
     def test_star_thresholds_return_zero_to_three(self):
         thresholds=(100,250,450)
