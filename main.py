@@ -129,24 +129,35 @@ def draw_main_title(surface,title_font):
         surface.blit(image,(64-image.get_width()//2,80))
 
 
+def draw_star_icon(surface,x,y,filled):
+    color=GOLD if filled else DIM
+    pygame.draw.rect(surface,color,(x+1,y,1,1))
+    pygame.draw.rect(surface,color,(x,y+1,3,1))
+    pygame.draw.rect(surface,color,(x+1,y+2,1,1))
+
+
+def draw_dart_icon(surface,x,y,active,color):
+    ink=color if active else DIM
+    pygame.draw.line(surface,ink,(x,y),(x+2,y+2),1)
+    pygame.draw.line(surface,ink,(x+2,y+2),(x+3,y+2),1)
+    pygame.draw.rect(surface,ink,(x,y+1,1,2))
+
+
+def live_stars(game):
+    return game.stars_for_hits(game.hits_by_player[game.current_player],game.throws_per_act)
+
+
 def draw_star_row(surface,stars,y=148):
-    # Tiny 3-slot progress readout. Filled stars are represented as compact
-    # diamond/star marks so they survive on the 64x32 display.
     start=25
     for i in range(3):
-        color=GOLD if i<stars else DIM
-        x=start+i*7
-        pygame.draw.rect(surface,color,(x,y+1,3,1))
-        pygame.draw.rect(surface,color,(x+1,y,1,3))
+        draw_star_icon(surface,start+i*7,y,i<stars)
 
 
 def draw_show_menu(surface,game):
     lower_clear(surface,PURPLE)
-    # SHOW selection is a major setup beat. Give both the category and choice
-    # the tall cabinet treatment instead of tiny menu copy.
-    draw_centered(surface,'SHOWS',32,129,PURPLE,sy=2,advance=4)
+    draw_centered(surface,'SHOWS',32,130,PURPLE,advance=4)
     label=game.selected_show_spec.menu_name
-    draw_centered(surface,label,32,140,WHITE,sy=2,advance=4)
+    draw_centered(surface,label,32,139,WHITE,sy=2,advance=4)
     draw_chevron(surface,2,142,TEAL,False)
     draw_chevron(surface,59,142,TEAL,True)
     draw_centered(surface,'A NEXT',32,153,TEAL,advance=4)
@@ -154,10 +165,8 @@ def draw_show_menu(surface,game):
 
 def draw_act_menu(surface,game):
     lower_clear(surface,PURPLE)
-    draw_centered(surface,'ACTS',32,129,PURPLE)
+    draw_centered(surface,'ACTS',32,130,PURPLE)
     label=game.selected_act_spec.menu_name
-    # Do not crush long labels just because they are long. Every current short
-    # display name fits at the normal 4 px series spacing.
     draw_centered(surface,label,32,139,WHITE,advance=4)
     draw_chevron(surface,2,141,TEAL,False)
     draw_chevron(surface,59,141,TEAL,True)
@@ -168,8 +177,7 @@ def draw_act_menu(surface,game):
 
 def draw_player_menu(surface,game):
     lower_clear(surface,PURPLE)
-    # Cabinet pass: move the entire player-selection read one pixel upward.
-    draw_centered(surface,'PLAYERS',32,129,CREAM)
+    draw_centered(surface,'PLAYERS',32,130,CREAM)
     xs=(8,23,38,53)
     for index,x in enumerate(xs):
         color=YELLOW if index+1==game.player_count else WHITE
@@ -188,13 +196,23 @@ def draw_throw_ready(surface,game):
 def draw_game_status(surface,game):
     color=PLAYER_COLORS[game.current_player]
     lower_clear(surface,color)
-    # No unexplained D/X/A shorthand. The 64x32 screen can fit clear words.
-    draw_text(surface,f'P{game.current_player+1}',2,130,color,advance=4)
-    draw_right(surface,f'LEFT {game.throws_remaining()}',61,130,GOLD,advance=4)
-    draw_centered(surface,f'SCORE {game.scores[game.current_player]:04d}',32,140,WHITE,advance=4)
+
+    # Small top row: stars left, ACT centered, darts right.
+    stars=live_stars(game)
+    for i in range(3):
+        draw_star_icon(surface,2+i*5,130,i<stars)
+    draw_centered(surface,f'ACT {game.act_index+1}',32,130,CREAM,advance=3)
+    used=game.throws_per_act-game.throws_remaining()
+    for i in range(game.throws_per_act):
+        draw_dart_icon(surface,44+i*4,130,i>=used,color)
+
+    # Big middle row: score is the hero read.
+    draw_centered(surface,f'{game.scores[game.current_player]:04d}',32,138,WHITE,sx=2,sy=2,advance=8)
+
+    # Small bottom row: player/combo support only.
     multiplier=1+min(game.combo[game.current_player],2) if game.combo[game.current_player] else 1
-    draw_text(surface,f'COMBO X{multiplier}',2,152,GOLD,advance=4)
-    draw_right(surface,f'ACT {game.act_index+1}',61,152,CREAM,advance=4)
+    draw_text(surface,f'P{game.current_player+1}',2,153,color,advance=4)
+    draw_right(surface,f'X{multiplier}',61,153,GOLD,advance=4)
 
 
 def draw_result_callout(surface,game):
@@ -270,7 +288,7 @@ def main():
                 game.go_acts()
             elif buttons.get('btn_a'):
                 game.begin()
-                field.start_act(game.mechanic_profile, difficulty=game.difficulty_rank)
+                field.start_act(game.mechanic_profile,difficulty=game.difficulty_rank)
                 tracker.baseline(active)
 
         elif game.phase is Phase.ACT_INTRO:
@@ -280,7 +298,7 @@ def main():
                 game.begin_play()
 
         elif game.phase is Phase.PLAYING:
-            field.update(game.mechanic_profile, difficulty=game.difficulty_rank)
+            field.update(game.mechanic_profile,difficulty=game.difficulty_rank)
             semantic=tracker.observe(hits,active)
             if semantic:
                 dart=semantic[0]
@@ -294,7 +312,7 @@ def main():
             tracker.baseline(active)
             if buttons.get('btn_a'):
                 game.begin()
-                field.start_act(game.mechanic_profile, difficulty=game.difficulty_rank)
+                field.start_act(game.mechanic_profile,difficulty=game.difficulty_rank)
             elif buttons.get('btn_b'):
                 game.go_shows()
                 field.reset()
@@ -321,7 +339,7 @@ def main():
             surface.blit(label,(64-label.get_width()//2,65))
             lower_clear(surface,PLAYER_COLORS[game.current_player])
             draw_text(surface,f'P{game.current_player+1}',2,130,PLAYER_COLORS[game.current_player])
-            draw_centered(surface,'GET READY',32,142,CREAM,advance=4)
+            draw_centered(surface,'GET READY',32,139,CREAM,sy=2,advance=4)
 
         elif game.phase is Phase.PLAYING:
             for target in field.targets:
@@ -352,8 +370,8 @@ def main():
                 col=GOLD if i<stars else DIM
                 pygame.draw.circle(surface,col,(54+i*10,92),3,1 if i>=stars else 0)
             lower_clear(surface,PLAYER_COLORS[winner])
-            draw_centered(surface,'RESULT',32,129,CREAM,sy=2,advance=4)
-            draw_centered(surface,f'P{winner+1} {game.scores[winner]}',32,141,PLAYER_COLORS[winner],sy=2,advance=4)
+            draw_centered(surface,'RESULT',32,130,CREAM,advance=4)
+            draw_centered(surface,f'{game.scores[winner]:04d}',32,138,WHITE,sx=2,sy=2,advance=8)
             draw_text(surface,'A AGAIN',3,153,TEAL,advance=4)
             draw_right(surface,'B MENU',60,153,TEAL,advance=4)
 
