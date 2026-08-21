@@ -1,7 +1,7 @@
 import unittest
 from throw_a_dart.semantic_darts import DartSample, SemanticDartTracker
 from throw_a_dart.target_engine import TargetField, TargetBehavior
-from throw_a_dart.game_state import ACT_NAMES, CircusGameState, Phase
+from throw_a_dart.game_state import SHOWS, TEST_MODE, CircusGameState, Phase
 
 class CoreTests(unittest.TestCase):
     def test_stationary_hit(self):
@@ -65,18 +65,59 @@ class CoreTests(unittest.TestCase):
         moved=(DartSample(0,60,60),)
         self.assertEqual(tracker.observe((),moved),moved)
 
-    def test_act_selection_wraps(self):
+    def test_setup_starts_at_shows(self):
+        game=CircusGameState()
+        self.assertEqual(game.phase,Phase.SHOW_SELECT)
+
+    def test_three_shows_three_acts_each(self):
+        self.assertEqual(len(SHOWS),3)
+        self.assertTrue(all(len(show.acts)==3 for show in SHOWS))
+
+    def test_show_selection_wraps(self):
+        game=CircusGameState()
+        game.cycle_show(-1)
+        self.assertEqual(game.selected_show,len(SHOWS)-1)
+        game.cycle_show(1)
+        self.assertEqual(game.selected_show,0)
+
+    def test_act_selection_wraps_inside_show(self):
         game=CircusGameState()
         game.cycle_act(-1)
-        self.assertEqual(game.selected_act,len(ACT_NAMES)-1)
+        self.assertEqual(game.selected_act,2)
         game.cycle_act(1)
         self.assertEqual(game.selected_act,0)
 
-    def test_begin_uses_selected_act(self):
-        game=CircusGameState(selected_act=2)
+    def test_test_mode_unlocks_everything(self):
+        self.assertTrue(TEST_MODE)
+        game=CircusGameState()
+        for show_index in range(3):
+            self.assertTrue(game.is_show_unlocked(show_index))
+            for act_index in range(3):
+                self.assertTrue(game.is_act_unlocked(show_index,act_index))
+
+    def test_begin_uses_selected_show_and_act(self):
+        game=CircusGameState(selected_show=2,selected_act=1)
         game.begin()
-        self.assertEqual(game.act_index,2)
+        self.assertEqual(game.show_index,2)
+        self.assertEqual(game.act_index,1)
         self.assertEqual(game.phase,Phase.ACT_INTRO)
+
+    def test_difficulty_increases_across_show_act_order(self):
+        game=CircusGameState(selected_show=0,selected_act=0)
+        game.begin()
+        self.assertEqual(game.difficulty_rank,0)
+        game.selected_show=2
+        game.selected_act=2
+        game.begin()
+        self.assertEqual(game.difficulty_rank,8)
+
+    def test_later_difficulty_reduces_forgiveness_and_increases_speed(self):
+        easy=TargetField(1)
+        hard=TargetField(1)
+        easy.start_act(1,difficulty=0)
+        hard.start_act(1,difficulty=8)
+        self.assertLess(hard.forgiveness,easy.forgiveness)
+        self.assertGreater(hard.speed_scale,easy.speed_scale)
 
     def test_multiplayer_rotates_without_removal_gate(self):
         game=CircusGameState(player_count=2,throws_per_act=2)
@@ -90,14 +131,15 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(game.current_player,0)
 
     def test_selected_act_ends_after_all_players_finish(self):
-        game=CircusGameState(player_count=2,throws_per_act=1,selected_act=3)
+        game=CircusGameState(player_count=2,throws_per_act=1,selected_show=2,selected_act=2)
         game.begin()
         game.begin_play()
         game.record_throw(25)
         _,transition=game.record_throw(25)
         self.assertEqual(transition,"game_over")
         self.assertEqual(game.phase,Phase.GAME_RESULT)
-        self.assertEqual(game.act_index,3)
+        self.assertEqual(game.show_index,2)
+        self.assertEqual(game.act_index,2)
 
     def test_combo_caps_at_three_x(self):
         game=CircusGameState(throws_per_act=10)
@@ -107,6 +149,13 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(game.record_throw(25)[0],50)
         self.assertEqual(game.record_throw(25)[0],75)
         self.assertEqual(game.record_throw(25)[0],75)
+
+    def test_star_thresholds_return_zero_to_three(self):
+        thresholds=(100,250,450)
+        self.assertEqual(CircusGameState.stars_for_score(99,thresholds),0)
+        self.assertEqual(CircusGameState.stars_for_score(100,thresholds),1)
+        self.assertEqual(CircusGameState.stars_for_score(300,thresholds),2)
+        self.assertEqual(CircusGameState.stars_for_score(500,thresholds),3)
 
 if __name__=='__main__':
     unittest.main()
