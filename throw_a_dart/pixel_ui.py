@@ -50,12 +50,20 @@ def draw_right(surface, text: str, right_x: int, y: int, color, sx: int = 1, sy:
     draw_text(surface, text, right_x - measure(text, sx=sx, advance=advance) + 1, y, color, sx=sx, sy=sy, advance=advance)
 
 def draw_chevron(surface, x: int, y: int, color, right: bool) -> None:
+    """Series-standard 3x5 menu chevron."""
     import pygame
-    points = ((x,y),(x+2,y+2),(x,y+4)) if right else ((x+2,y),(x,y+2),(x+2,y+4))
-    for px, py in points:
-        pygame.draw.rect(surface, color, (px, py, 1, 1))
+    pattern = (
+        ("100","010","001","010","100")
+        if right
+        else ("001","010","100","010","001")
+    )
+    for row, bits in enumerate(pattern):
+        for col, bit in enumerate(bits):
+            if bit == "1":
+                pygame.draw.rect(surface, color, (x + col, y + row, 1, 1))
 
-def draw_down_marker(surface, center_x: int, y: int, color) -> None:
+def draw_up_marker(surface, center_x: int, y: int, color) -> None:
+    """Tiny upward selector arrow used under the active player number."""
     import pygame
-    pygame.draw.rect(surface, color, (center_x - 1, y, 3, 1))
-    pygame.draw.rect(surface, color, (center_x, y + 1, 1, 1))
+    pygame.draw.rect(surface, color, (center_x, y, 1, 1))
+    pygame.draw.rect(surface, color, (center_x - 1, y + 1, 3, 1))
