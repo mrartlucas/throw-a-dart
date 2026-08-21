@@ -208,6 +208,19 @@ class CoreTests(unittest.TestCase):
             game.record_throw(0)
         self.assertEqual(game.result_stars,1)
 
+    def test_multiplayer_result_stars_follow_winner(self):
+        game=CircusGameState(player_count=2,throws_per_act=2)
+        game.begin()
+        game.begin_play()
+        # P1 hits a low target twice; P2 hits a higher target once and wins.
+        game.record_throw(25)   # P1
+        game.record_throw(100)  # P2
+        game.record_throw(25)   # P1
+        game.record_throw(0)    # P2 -> game over
+        self.assertEqual(game.winner(),1)
+        self.assertEqual(game.hits_by_player[1],1)
+        self.assertEqual(game.result_stars,1)
+
 
 if __name__=='__main__':
     unittest.main()
