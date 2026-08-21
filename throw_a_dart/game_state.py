@@ -15,9 +15,9 @@ PLAYER_COLORS = (
 TEST_MODE = True
 
 # Universal THROW READY timing at the cabinet's 30 FPS target.
-# It is a steady fighting-game-style cue: hold for 3 seconds, then disappear.
-READY_HOLD_SECONDS = 3
-READY_HOLD_FRAMES = 30 * READY_HOLD_SECONDS
+# Short, punchy cue: 1.5 seconds, then return to the gameplay HUD.
+READY_HOLD_SECONDS = 1.5
+READY_HOLD_FRAMES = int(30 * READY_HOLD_SECONDS)
 
 
 @dataclass(frozen=True)
@@ -25,9 +25,6 @@ class ActSpec:
     name: str
     menu_name: str
     mechanic_profile: int
-    # Reserved for a later score-based progression pass if desired. The current
-    # cabinet-test star rule is intentionally based on hits so every act reads
-    # consistently while target values are still being tuned.
     star_thresholds: tuple[int, int, int]
 
 
@@ -91,9 +88,7 @@ class CircusGameState:
     combo: list[int] = field(default_factory=lambda: [0, 0, 0, 0])
     throws_by_player: list[int] = field(default_factory=lambda: [0, 0, 0, 0])
     hits_by_player: list[int] = field(default_factory=lambda: [0, 0, 0, 0])
-    # Best stars earned per act during this test session.
     stars: list[list[int]] = field(default_factory=lambda: [[0, 0, 0] for _ in range(3)])
-    # Stars earned by the run that just ended. This is what RESULT displays.
     result_stars: int = 0
     phase: Phase = Phase.SHOW_SELECT
     phase_frames: int = 0
@@ -235,8 +230,6 @@ class CircusGameState:
         return points, transition
 
     def _record_stars(self) -> None:
-        # Cabinet-test rule: stars describe the winning player's hit consistency,
-        # not the point values (which are still being tuned by act).
         winner_hits = self.hits_by_player[self.winner()]
         earned = self.stars_for_hits(winner_hits, self.throws_per_act)
         self.result_stars = earned
@@ -250,10 +243,8 @@ class CircusGameState:
             return 0
         if hits >= throws:
             return 3
-        # For the standard 5-throw act: 3-4 hits = 2 stars.
         if hits * 5 >= throws * 3:
             return 2
-        # Any successful hit earns at least one star in the test progression.
         return 1
 
     def stars_for_selected(self) -> int:
