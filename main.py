@@ -5,14 +5,14 @@ import pygame
 from pydartsnut import Dartsnut
 from throw_a_dart.semantic_darts import DartSample, SemanticDartTracker
 from throw_a_dart.target_engine import TargetBehavior, TargetField
-from throw_a_dart.game_state import ACT_NAMES, PLAYER_COLORS, CircusGameState, Phase
+from throw_a_dart.game_state import SHOWS, PLAYER_COLORS, TEST_MODE, CircusGameState, Phase
 from throw_a_dart.pixel_ui import draw_centered, draw_text, draw_right, draw_chevron, draw_down_marker
 
 WIDTH, HEIGHT, PLAY_H = 128, 160, 128
 FPS = 30
 BLACK=(0,0,0); CREAM=(250,238,199); RED=(225,48,52); DARK_RED=(111,19,31); GOLD=(255,194,45)
 YELLOW=(255,225,88); TEAL=(32,190,181); BLUE=(55,137,217); DARK_BLUE=(20,46,79); PURPLE=(104,61,151)
-BROWN=(116,63,35); INK=(24,21,27); WHITE=(255,255,255)
+BROWN=(116,63,35); INK=(24,21,27); WHITE=(255,255,255); DIM=(118,118,118)
 
 
 def submit(engine,surface):
@@ -52,7 +52,7 @@ def bg(surface,tick):
     pygame.draw.rect(surface,CREAM,(0,0,128,128))
     pygame.draw.rect(surface,DARK_RED,(0,0,128,17))
     for x in range(-16,144,24):
-        pygame.draw.polygon(surface,RED,((x,0),(x+12,0),(x+25,17),(x+12,17)))
+        pygame.draw.polygon(surface,RED,((x,0),(x+12,0),(x+25,17),(x+12,17),(x+12,17)))
     pygame.draw.line(surface,GOLD,(0,17),(127,17),2)
     pygame.draw.rect(surface,(241,219,171),(0,19,128,88))
     for y in (35,53,71,89):
@@ -118,23 +118,50 @@ def read_samples(rows):
 
 
 def draw_main_title(surface,title_font):
-    pygame.draw.rect(surface,INK,(8,32,112,64))
+    pygame.draw.rect(surface,INK,(8,29,112,69))
     image=title_font.render('BULLSEYE',False,GOLD)
-    surface.blit(image,(64-image.get_width()//2,37))
+    surface.blit(image,(64-image.get_width()//2,34))
     small=pygame.font.Font(None,17)
     image=small.render('BIG TOP CIRCUS',False,CREAM)
-    surface.blit(image,(64-image.get_width()//2,59))
+    surface.blit(image,(64-image.get_width()//2,56))
+    if TEST_MODE:
+        image=pygame.font.Font(None,12).render('TEST - ALL UNLOCKED',False,TEAL)
+        surface.blit(image,(64-image.get_width()//2,80))
 
 
-def draw_act_menu(surface,game):
+def draw_star_row(surface,stars,y=148):
+    # Tiny 3-slot progress readout. Filled stars are represented as compact
+    # diamond/star marks so they survive on the 64x32 display.
+    start=25
+    for i in range(3):
+        color=GOLD if i<stars else DIM
+        x=start+i*7
+        pygame.draw.rect(surface,color,(x,y+1,3,1))
+        pygame.draw.rect(surface,color,(x+1,y,1,3))
+
+
+def draw_show_menu(surface,game):
     lower_clear(surface,PURPLE)
-    draw_centered(surface,'ACT',32,130,PURPLE)
-    label=ACT_NAMES[game.selected_act]
+    draw_centered(surface,'SHOWS',32,130,PURPLE)
+    label=game.selected_show_spec.menu_name
     advance=3 if len(label)>10 else 4
     draw_centered(surface,label,32,139,WHITE,advance=advance)
     draw_chevron(surface,2,142,TEAL,False)
     draw_chevron(surface,59,142,TEAL,True)
     draw_text(surface,'A NEXT',3,153,TEAL,advance=3)
+
+
+def draw_act_menu(surface,game):
+    lower_clear(surface,PURPLE)
+    draw_centered(surface,'ACTS',32,130,PURPLE)
+    label=game.selected_act_spec.menu_name
+    advance=3 if len(label)>10 else 4
+    draw_centered(surface,label,32,139,WHITE,advance=advance)
+    draw_chevron(surface,2,142,TEAL,False)
+    draw_chevron(surface,59,142,TEAL,True)
+    draw_star_row(surface,game.stars_for_selected(),147)
+    draw_text(surface,'A NEXT',3,153,TEAL,advance=3)
+    draw_right(surface,'B BACK',60,153,TEAL,advance=3)
 
 
 def draw_player_menu(surface,game):
@@ -209,13 +236,24 @@ def main():
         hits=read_samples(engine.get_dart_hits())
         active=read_samples(engine.get_active_darts())
 
-        if game.phase is Phase.ACT_SELECT:
+        if game.phase is Phase.SHOW_SELECT:
+            tracker.baseline(active)
+            if buttons.get('btn_left') or buttons.get('btn_down'):
+                game.cycle_show(-1)
+            if buttons.get('btn_right') or buttons.get('btn_up'):
+                game.cycle_show(1)
+            if buttons.get('btn_a'):
+                game.go_acts()
+
+        elif game.phase is Phase.ACT_SELECT:
             tracker.baseline(active)
             if buttons.get('btn_left') or buttons.get('btn_down'):
                 game.cycle_act(-1)
             if buttons.get('btn_right') or buttons.get('btn_up'):
                 game.cycle_act(1)
-            if buttons.get('btn_a'):
+            if buttons.get('btn_b'):
+                game.go_shows()
+            elif buttons.get('btn_a'):
                 game.go_players()
 
         elif game.phase is Phase.PLAYER_SELECT:
@@ -228,7 +266,7 @@ def main():
                 game.go_acts()
             elif buttons.get('btn_a'):
                 game.begin()
-                field.start_act(game.act_index)
+                field.start_act(game.mechanic_profile, difficulty=game.difficulty_rank)
                 tracker.baseline(active)
 
         elif game.phase is Phase.ACT_INTRO:
@@ -238,7 +276,7 @@ def main():
                 game.begin_play()
 
         elif game.phase is Phase.PLAYING:
-            field.update(game.act_index)
+            field.update(game.mechanic_profile, difficulty=game.difficulty_rank)
             semantic=tracker.observe(hits,active)
             if semantic:
                 dart=semantic[0]
@@ -252,27 +290,31 @@ def main():
             tracker.baseline(active)
             if buttons.get('btn_a'):
                 game.begin()
-                field.start_act(game.act_index)
+                field.start_act(game.mechanic_profile, difficulty=game.difficulty_rank)
             elif buttons.get('btn_b'):
-                game.go_acts()
+                game.go_shows()
                 field.reset()
 
         surface.fill(BLACK)
         bg(surface,tick)
 
-        if game.phase in (Phase.ACT_SELECT,Phase.PLAYER_SELECT):
+        if game.phase in (Phase.SHOW_SELECT,Phase.ACT_SELECT,Phase.PLAYER_SELECT):
             draw_main_title(surface,title_font)
-            if game.phase is Phase.ACT_SELECT:
+            if game.phase is Phase.SHOW_SELECT:
+                draw_show_menu(surface,game)
+            elif game.phase is Phase.ACT_SELECT:
                 draw_act_menu(surface,game)
             else:
                 draw_player_menu(surface,game)
 
         elif game.phase is Phase.ACT_INTRO:
-            font=pygame.font.Font(None,17)
-            label=font.render(f'ACT {game.act_index+1}',False,DARK_RED)
-            surface.blit(label,(64-label.get_width()//2,38))
-            label=title_font.render(ACT_NAMES[game.act_index],False,INK)
-            surface.blit(label,(64-label.get_width()//2,57))
+            font=pygame.font.Font(None,14)
+            show_label=font.render(SHOWS[game.show_index].menu_name,False,DARK_RED)
+            surface.blit(show_label,(64-show_label.get_width()//2,32))
+            act_label=font.render(f'ACT {game.act_index+1}',False,PURPLE)
+            surface.blit(act_label,(64-act_label.get_width()//2,48))
+            label=pygame.font.Font(None,17).render(game.active_act_spec.name,False,INK)
+            surface.blit(label,(64-label.get_width()//2,65))
             lower_clear(surface,PLAYER_COLORS[game.current_player])
             draw_text(surface,f'P{game.current_player+1}',2,130,PLAYER_COLORS[game.current_player])
             draw_centered(surface,'GET READY',32,142,CREAM,advance=3)
@@ -297,14 +339,18 @@ def main():
 
         elif game.phase is Phase.GAME_RESULT:
             winner=game.winner()
-            pygame.draw.rect(surface,INK,(10,31,108,68))
+            stars=game.stars[game.show_index][game.act_index]
+            pygame.draw.rect(surface,INK,(10,28,108,74))
             label=title_font.render('SHOW OVER!',False,GOLD)
-            surface.blit(label,(64-label.get_width()//2,39))
+            surface.blit(label,(64-label.get_width()//2,34))
             font=pygame.font.Font(None,17)
             label=font.render(f'P{winner+1} WINS',False,PLAYER_COLORS[winner])
-            surface.blit(label,(64-label.get_width()//2,63))
+            surface.blit(label,(64-label.get_width()//2,57))
             label=font.render(str(game.scores[winner]),False,WHITE)
-            surface.blit(label,(64-label.get_width()//2,80))
+            surface.blit(label,(64-label.get_width()//2,74))
+            for i in range(3):
+                col=GOLD if i<stars else DIM
+                pygame.draw.circle(surface,col,(54+i*10,92),3,1 if i>=stars else 0)
             lower_clear(surface,PLAYER_COLORS[winner])
             draw_centered(surface,'RESULT',32,130,CREAM)
             draw_centered(surface,f'P{winner+1} {game.scores[winner]}',32,140,PLAYER_COLORS[winner])
